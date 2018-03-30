@@ -249,7 +249,11 @@ CheckForUpdatesCallback(char *contents, size_t size, size_t count, void *userDat
 	{
 		Datum responseCStringDatum = CStringGetDatum(responseNullTerminated->data);
 		Datum responseJasonbDatum = DirectFunctionCall1(jsonb_in, responseCStringDatum);
+#if (PG_VERSION_NUM >= 110000)
+		responseJsonb = DatumGetJsonbP(responseJasonbDatum);
+#else
 		responseJsonb = DatumGetJsonb(responseJasonbDatum);
+#endif
 		ReleaseCurrentSubTransaction();
 	}
 	PG_CATCH();

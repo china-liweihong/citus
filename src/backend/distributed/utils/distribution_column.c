@@ -205,7 +205,12 @@ ColumnNameToColumn(Oid relationId, char *columnNodeString)
 							   columnNumber, relationName)));
 	}
 
+#if (PG_VERSION_NUM >= 110000)
+	columnName = get_attname(relationId, column->varattno, false);
+#else
 	columnName = get_attname(relationId, column->varattno);
+#endif
+
 	if (columnName == NULL)
 	{
 		char *relationName = get_rel_name(relationId);

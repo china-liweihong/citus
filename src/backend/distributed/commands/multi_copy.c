@@ -800,11 +800,17 @@ OpenCopyConnections(CopyStmt *copyStatement, ShardConnections *shardConnections,
 	int64 shardId = shardConnections->shardId;
 	bool raiseInterrupts = true;
 
+#if (PG_VERSION_NUM >= 110000)
+	MemoryContext localContext = AllocSetContextCreate(CurrentMemoryContext,
+													   "OpenCopyConnections",
+													   ALLOCSET_DEFAULT_SIZES);
+#else
 	MemoryContext localContext = AllocSetContextCreate(CurrentMemoryContext,
 													   "OpenCopyConnections",
 													   ALLOCSET_DEFAULT_MINSIZE,
 													   ALLOCSET_DEFAULT_INITSIZE,
 													   ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 
 	/* release finalized placement list at the end of this function */
 	MemoryContext oldContext = MemoryContextSwitchTo(localContext);

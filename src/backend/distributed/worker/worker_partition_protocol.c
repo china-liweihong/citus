@@ -1000,11 +1000,17 @@ InitRowOutputState(void)
 	 * recover palloc'd memory. This avoids any problems with leaks inside data
 	 * type output routines, and should be faster than retail pfree's anyway.
 	 */
+#if (PG_VERSION_NUM >= 110000)
+	rowOutputState->rowcontext = AllocSetContextCreate(CurrentMemoryContext,
+													   "WorkerRowOutputContext",
+													   ALLOCSET_DEFAULT_SIZES);
+#else
 	rowOutputState->rowcontext = AllocSetContextCreate(CurrentMemoryContext,
 													   "WorkerRowOutputContext",
 													   ALLOCSET_DEFAULT_MINSIZE,
 													   ALLOCSET_DEFAULT_INITSIZE,
 													   ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 
 	/* allocate the message buffer to use for serializing a row */
 	rowOutputState->fe_msgbuf = makeStringInfo();

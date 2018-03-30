@@ -4164,7 +4164,11 @@ ColumnName(Var *column, List *rangeTableList)
 	else if (rangeTableKind == CITUS_RTE_RELATION)
 	{
 		Oid relationId = rangeTableEntry->relid;
+#if (PG_VERSION_NUM >= 110000)
+		columnName = get_attname(relationId, columnNumber, false);
+#else
 		columnName = get_attname(relationId, columnNumber);
+#endif
 	}
 
 	Assert(columnName != NULL);

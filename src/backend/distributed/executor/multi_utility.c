@@ -128,7 +128,7 @@ static Node * WorkerProcessAlterTableStmt(AlterTableStmt *alterTableStatement,
 static List * PlanAlterObjectSchemaStmt(AlterObjectSchemaStmt *alterObjectSchemaStmt,
 										const char *alterObjectSchemaCommand);
 static void ProcessVacuumStmt(VacuumStmt *vacuumStmt, const char *vacuumCommand);
-static bool IsSupportedDistributedVacuumStmt(Oid relationId, VacuumStmt *vacuumStmt);
+static bool IsSupportedDistributedVacuumStmt(VacuumStmt *vacuumStmt);
 static List * VacuumTaskList(Oid relationId, VacuumStmt *vacuumStmt);
 static StringInfo DeparseVacuumStmtPrefix(VacuumStmt *vacuumStmt);
 static char * DeparseVacuumColumnNames(List *columnNameList);
@@ -1606,24 +1606,35 @@ ProcessVacuumStmt(VacuumStmt *vacuumStmt, const char *vacuumCommand)
 	Oid relationId = InvalidOid;
 	List *taskList = NIL;
 	bool supportedVacuumStmt = false;
+	RangeVar *relation = NULL;
 
-	if (vacuumStmt->relation != NULL)
+	supportedVacuumStmt = IsSupportedDistributedVacuumStmt(vacuumStmt);
+	if (!supportedVacuumStmt)
+	{
+		return;
+	}
+
+#if (PG_VERSION_NUM >= 110000)
+	Assert(list_length(vacuumStmt->rels) == 1);
+	{
+		VacuumRelation *vacuumRelation = (VacuumRelation *) linitial(vacuumStmt->rels);
+		relation = vacuumRelation->relation;
+	}
+#else
+	relation = vacuumStmt->relation;
+#endif
+
+	if (relation != NULL)
 	{
 		LOCKMODE lockMode = (vacuumStmt->options & VACOPT_FULL) ?
 							AccessExclusiveLock : ShareUpdateExclusiveLock;
 
-		relationId = RangeVarGetRelid(vacuumStmt->relation, lockMode, false);
+		relationId = RangeVarGetRelid(relation, lockMode, false);
 
 		if (relationId == InvalidOid)
 		{
 			return;
 		}
-	}
-
-	supportedVacuumStmt = IsSupportedDistributedVacuumStmt(relationId, vacuumStmt);
-	if (!supportedVacuumStmt)
-	{
-		return;
 	}
 
 	taskList = VacuumTaskList(relationId, vacuumStmt);
@@ -1655,23 +1666,83 @@ ProcessVacuumStmt(VacuumStmt *vacuumStmt, const char *vacuumCommand)
  * statement needs distributed execution but contains unsupported options.
  */
 static bool
-IsSupportedDistributedVacuumStmt(Oid relationId, VacuumStmt *vacuumStmt)
+IsSupportedDistributedVacuumStmt(VacuumStmt *vacuumStmt)
 {
 	const char *stmtName = (vacuumStmt->options & VACOPT_VACUUM) ? "VACUUM" : "ANALYZE";
 	bool distributeStmt = false;
+	List *relationIdList = NIL;
+	ListCell *relationIdCell = NULL;
+	int distributedRelationCount = 0;
+	int vacuumedRelationCount = 0;
 
-	if (vacuumStmt->relation == NULL)
+#if (PG_VERSION_NUM >= 110000)
+	bool hasNoRelation = (vacuumStmt->rels == NIL);
+#else
+	bool hasNoRelation = (vacuumStmt->relation == NULL);
+#endif
+
+	if (hasNoRelation)
 	{
 		/* WARN for unqualified VACUUM commands */
 		ereport(WARNING, (errmsg("not propagating %s command to worker nodes", stmtName),
 						  errhint("Provide a specific table in order to %s "
 								  "distributed tables.", stmtName)));
+		return false;
 	}
-	else if (!OidIsValid(relationId) || !IsDistributedTable(relationId))
+
+#if (PG_VERSION_NUM >= 110000)
 	{
-		/* Nothing to do here; relation no longer exists or is not distributed */
+		ListCell *vacuumRelationCell = NULL;
+		foreach(vacuumRelationCell, vacuumStmt->rels)
+		{
+			VacuumRelation *vacuumRelation = (VacuumRelation *) lfirst(
+				vacuumRelationCell);
+			relationIdList = lappend_oid(relationIdList, vacuumRelation->oid);
+		}
 	}
-	else if (!EnableDDLPropagation)
+#else
+	{
+		LOCKMODE lockMode = (vacuumStmt->options & VACOPT_FULL) ?
+							AccessExclusiveLock : ShareUpdateExclusiveLock;
+
+		Oid relationId = RangeVarGetRelid(vacuumStmt->relation, lockMode, false);
+
+		relationIdList = list_make1_oid(relationId);
+	}
+#endif
+
+	vacuumedRelationCount = list_length(relationIdList);
+
+	foreach(relationIdCell, relationIdList)
+	{
+		Oid relationId = lfirst_oid(relationIdCell);
+		if (OidIsValid(relationId) && IsDistributedTable(relationId))
+		{
+			distributedRelationCount++;
+		}
+	}
+
+	/*
+	 * There can only be one distributed relation in the vacuum statement.
+	 * If there is no distributed relation, then we silently fall back
+	 * since there is nothing to do for us. Error cases are there is more
+	 * than one distributed relation, or there is one distributed relation
+	 * along with other relations.
+	 */
+	if (distributedRelationCount == 0)
+	{
+		/* Nothing to do here; there is no distributed relation */
+		return false;
+	}
+	else if (distributedRelationCount > 0 && vacuumedRelationCount > 1)
+	{
+		ereport(ERROR, (errmsg(
+							"vacuuming multiple tables at the same time is not supported"),
+						errhint("Vacuum one distributed table at a time.")));
+	}
+
+
+	if (!EnableDDLPropagation)
 	{
 		/* WARN if DDL propagation is not enabled */
 		ereport(WARNING, (errmsg("not propagating %s command to worker nodes", stmtName),
@@ -1707,11 +1778,18 @@ VacuumTaskList(Oid relationId, VacuumStmt *vacuumStmt)
 	uint64 jobId = INVALID_JOB_ID;
 	int taskId = 1;
 	StringInfo vacuumString = DeparseVacuumStmtPrefix(vacuumStmt);
-	const char *columnNames = DeparseVacuumColumnNames(vacuumStmt->va_cols);
+	const char *columnNames = NULL;
 	const int vacuumPrefixLen = vacuumString->len;
 	Oid schemaId = get_rel_namespace(relationId);
 	char *schemaName = get_namespace_name(schemaId);
 	char *tableName = get_rel_name(relationId);
+
+#if (PG_VERSION_NUM >= 110000)
+	VacuumRelation *vacuumRelation = (VacuumRelation *) linitial(vacuumStmt->rels);
+	columnNames = DeparseVacuumColumnNames(vacuumRelation->va_cols);
+#else
+	columnNames = DeparseVacuumColumnNames(vacuumStmt->va_cols);
+#endif
 
 	/*
 	 * We obtain ShareUpdateExclusiveLock here to not conflict with INSERT's
@@ -3384,8 +3462,16 @@ RangeVarCallbackForDropIndex(const RangeVar *rel, Oid relOid, Oid oldRelOid, voi
 	/* Allow DROP to either table owner or schema owner */
 	if (!pg_class_ownercheck(relOid, GetUserId()) &&
 		!pg_namespace_ownercheck(classform->relnamespace, GetUserId()))
+	{
+#if (PG_VERSION_NUM >= 110000)
+		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(relkind),
+				rel->relname);
+#else
 		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
 					   rel->relname);
+
+#endif
+	}
 
 	if (!allowSystemTableMods && IsSystemClass(relOid, classform))
 		ereport(ERROR,
@@ -3650,8 +3736,13 @@ PlanGrantStmt(GrantStmt *grantStmt)
 	 * So far only table level grants are supported. Most other types of
 	 * grants aren't interesting anyway.
 	 */
+#if (PG_VERSION_NUM >= 110000)
+#define RELATION_OBJECT_TYPE OBJECT_TABLE
+#else
+#define RELATION_OBJECT_TYPE ACL_OBJECT_RELATION
+#endif
 	if (grantStmt->targtype != ACL_TARGET_OBJECT ||
-		grantStmt->objtype != ACL_OBJECT_RELATION)
+		grantStmt->objtype != RELATION_OBJECT_TYPE)
 	{
 		return NIL;
 	}

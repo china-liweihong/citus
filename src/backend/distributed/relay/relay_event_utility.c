@@ -289,9 +289,13 @@ RelayEventExtendNames(Node *parseTree, char *schemaName, uint64 shardId)
 		case T_GrantStmt:
 		{
 			GrantStmt *grantStmt = (GrantStmt *) parseTree;
-
+#if (PG_VERSION_NUM >= 110000)
+#define RELATION_OBJECT_TYPE OBJECT_TABLE
+#else
+#define RELATION_OBJECT_TYPE ACL_OBJECT_RELATION
+#endif
 			if (grantStmt->targtype == ACL_TARGET_OBJECT &&
-				grantStmt->objtype == ACL_OBJECT_RELATION)
+				grantStmt->objtype == RELATION_OBJECT_TYPE)
 			{
 				ListCell *lc;
 

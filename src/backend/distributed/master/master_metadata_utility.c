@@ -1274,8 +1274,13 @@ EnsureTablePermissions(Oid relationId, AclMode mode)
 
 	if (aclresult != ACLCHECK_OK)
 	{
+#if (PG_VERSION_NUM >= 110000)
+		aclcheck_error(aclresult, OBJECT_TABLE,
+					   get_rel_name(relationId));
+#else
 		aclcheck_error(aclresult, ACL_KIND_CLASS,
 					   get_rel_name(relationId));
+#endif
 	}
 }
 
@@ -1289,8 +1294,13 @@ EnsureTableOwner(Oid relationId)
 {
 	if (!pg_class_ownercheck(relationId, GetUserId()))
 	{
+#if (PG_VERSION_NUM >= 110000)
+		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_TABLE,
+					   get_rel_name(relationId));
+#else
 		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
 					   get_rel_name(relationId));
+#endif
 	}
 }
 

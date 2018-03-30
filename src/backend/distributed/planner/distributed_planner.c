@@ -1468,7 +1468,12 @@ HasUnresolvedExternParamsWalker(Node *expression, ParamListInfo boundParams)
 			/* give hook a chance in case parameter is dynamic */
 			if (!OidIsValid(externParam->ptype) && boundParams->paramFetch != NULL)
 			{
+#if (PG_VERSION_NUM >= 110000)
+				ParamExternData paramExternData;
+				(*boundParams->paramFetch)(boundParams, paramId, false, &paramExternData);
+#else
 				(*boundParams->paramFetch)(boundParams, paramId);
+#endif
 			}
 
 			if (OidIsValid(externParam->ptype))

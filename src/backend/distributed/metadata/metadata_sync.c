@@ -92,8 +92,11 @@ start_metadata_sync_to_node(PG_FUNCTION_ARGS)
 	EnsureModificationsCanRun();
 	CheckCitusVersion(ERROR);
 
+#if (PG_VERSION_NUM >= 110000)
+	PreventInTransactionBlock(true, "start_metadata_sync_to_node");
+#else
 	PreventTransactionChain(true, "start_metadata_sync_to_node");
-
+#endif
 	workerNode = FindWorkerNode(nodeNameString, nodePort);
 
 	if (workerNode == NULL)

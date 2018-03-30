@@ -333,7 +333,11 @@ RemoveJobSchema(StringInfo schemaName)
 		bool permissionsOK = pg_namespace_ownercheck(schemaId, GetUserId());
 		if (!permissionsOK)
 		{
+#if (PG_VERSION_NUM >= 110000)
+			aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA, schemaName->data);
+#else
 			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_NAMESPACE, schemaName->data);
+#endif
 		}
 
 		schemaObject.classId = NamespaceRelationId;

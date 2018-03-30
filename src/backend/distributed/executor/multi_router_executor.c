@@ -1381,11 +1381,17 @@ StoreQueryResult(CitusScanState *scanState, MultiConnection *connection,
 	bool randomAccess = true;
 	bool interTransactions = false;
 	bool commandFailed = false;
+#if (PG_VERSION_NUM >= 110000)
+	MemoryContext ioContext = AllocSetContextCreate(CurrentMemoryContext,
+													"StoreQueryResult",
+													ALLOCSET_DEFAULT_SIZES);
+#else
 	MemoryContext ioContext = AllocSetContextCreate(CurrentMemoryContext,
 													"StoreQueryResult",
 													ALLOCSET_DEFAULT_MINSIZE,
 													ALLOCSET_DEFAULT_INITSIZE,
 													ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 	*rows = 0;
 
 	if (scanState->tuplestorestate == NULL)

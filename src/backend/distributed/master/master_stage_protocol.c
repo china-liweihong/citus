@@ -860,8 +860,11 @@ WorkerShardStats(ShardPlacement *placement, Oid relationId, char *shardName,
 
 	/* fill in the partition column name and shard name in the query. */
 	partitionColumn = PartitionColumn(relationId, unusedTableId);
+#if (PG_VERSION_NUM >= 110000)
+	partitionColumnName = get_attname(relationId, partitionColumn->varattno, false);
+#else
 	partitionColumnName = get_attname(relationId, partitionColumn->varattno);
-
+#endif
 	appendStringInfo(partitionValueQuery, SHARD_RANGE_QUERY,
 					 partitionColumnName, partitionColumnName, shardName);
 

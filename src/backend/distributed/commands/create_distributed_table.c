@@ -1111,8 +1111,14 @@ CreateTruncateTrigger(Oid relationId)
 	trigger->whenClause = NULL;
 	trigger->isconstraint = false;
 
+#if (PG_VERSION_NUM >= 110000)
+	CreateTrigger(trigger, NULL, relationId, InvalidOid, InvalidOid, InvalidOid,
+				  InvalidOid, InvalidOid, NULL,
+				  internal, false);
+#else
 	CreateTrigger(trigger, NULL, relationId, InvalidOid, InvalidOid, InvalidOid,
 				  internal);
+#endif
 }
 
 

@@ -58,10 +58,16 @@ InitializeConnectionManagement(void)
 	 * management. Doing so, instead of allocating in TopMemoryContext, makes
 	 * it easier to associate used memory.
 	 */
+
+#if (PG_VERSION_NUM >= 110000)
+	ConnectionContext = AllocSetContextCreate(TopMemoryContext, "Connection Context",
+											  ALLOCSET_DEFAULT_SIZES);
+#else
 	ConnectionContext = AllocSetContextCreate(TopMemoryContext, "Connection Context",
 											  ALLOCSET_DEFAULT_MINSIZE,
 											  ALLOCSET_DEFAULT_INITSIZE,
 											  ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 
 	/* create (host,port,user,database) -> [connection] hash */
 	memset(&info, 0, sizeof(info));

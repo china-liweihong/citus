@@ -145,10 +145,15 @@ TaskTrackerMain(Datum main_arg)
 	 * that we can reset the context during error recovery and thereby avoid
 	 * possible memory leaks.
 	 */
+#if (PG_VERSION_NUM >= 110000)
+	TaskTrackerContext = AllocSetContextCreate(TopMemoryContext, "Task Tracker",
+											   ALLOCSET_DEFAULT_SIZES);
+#else
 	TaskTrackerContext = AllocSetContextCreate(TopMemoryContext, "Task Tracker",
 											   ALLOCSET_DEFAULT_MINSIZE,
 											   ALLOCSET_DEFAULT_INITSIZE,
 											   ALLOCSET_DEFAULT_MAXSIZE);
+#endif
 	MemoryContextSwitchTo(TaskTrackerContext);
 
 	/*

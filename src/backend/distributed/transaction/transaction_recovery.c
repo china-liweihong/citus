@@ -176,11 +176,18 @@ RecoverWorkerTransactions(WorkerNode *workerNode)
 		return 0;
 	}
 
+#if (PG_VERSION_NUM >= 110000)
+	localContext = AllocSetContextCreate(CurrentMemoryContext,
+										 "RecoverWorkerTransactions",
+										 ALLOCSET_DEFAULT_SIZES);
+#else
 	localContext = AllocSetContextCreate(CurrentMemoryContext,
 										 "RecoverWorkerTransactions",
 										 ALLOCSET_DEFAULT_MINSIZE,
 										 ALLOCSET_DEFAULT_INITSIZE,
 										 ALLOCSET_DEFAULT_MAXSIZE);
+#endif
+
 	oldContext = MemoryContextSwitchTo(localContext);
 
 	/* take table lock first to avoid running concurrently */

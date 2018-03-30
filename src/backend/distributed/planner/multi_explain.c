@@ -241,7 +241,11 @@ ExplainJob(Job *job, ExplainState *es)
 
 	ExplainOpenGroup("Job", "Job", true, es);
 
+#if (PG_VERSION_NUM >= 110000)
+	ExplainPropertyInteger("Task Count", NULL, taskCount, es);
+#else
 	ExplainPropertyInteger("Task Count", taskCount, es);
+#endif
 
 	if (dependedJobCount > 0)
 	{
@@ -318,8 +322,13 @@ ExplainMapMergeJob(MapMergeJob *mapMergeJob, ExplainState *es)
 
 	ExplainOpenGroup("MapMergeJob", NULL, true, es);
 
+#if (PG_VERSION_NUM >= 110000)
+	ExplainPropertyInteger("Map Task Count", NULL, mapTaskCount, es);
+	ExplainPropertyInteger("Merge Task Count", NULL, mergeTaskCount, es);
+#else
 	ExplainPropertyInteger("Map Task Count", mapTaskCount, es);
 	ExplainPropertyInteger("Merge Task Count", mergeTaskCount, es);
+#endif
 
 	if (dependedJobCount > 0)
 	{
@@ -662,7 +671,10 @@ ExplainOneQuery(Query *query, IntoClause *into, ExplainState *es,
 {
 	/* if an advisor plugin is present, let it manage things */
 	if (ExplainOneQuery_hook)
-#if (PG_VERSION_NUM >= 100000)
+#if (PG_VERSION_NUM >= 110000)
+		(*ExplainOneQuery_hook) (query, cursorOptions, into, es,
+								 queryString, params, queryEnv);
+#elif (PG_VERSION_NUM >= 100000)
 		(*ExplainOneQuery_hook) (query, cursorOptions, into, es,
 								 queryString, params);
 #else

@@ -45,7 +45,7 @@ DEBUG:  assigned task 6 to node localhost:57638
 DEBUG:  assigned task 2 to node localhost:57637
  count 
 -------
-  2984
+  2985
 (1 row)
 
 -- Single range repartition join, along with a join with a small table containing
@@ -61,11 +61,11 @@ WHERE
 	o_custkey = c_custkey AND
 	o_orderkey = l_orderkey;
 DEBUG:  join prunable for intervals [1,5986] and [8997,14947]
-DEBUG:  join prunable for intervals [8997,14946] and [1,5986]
+DEBUG:  join prunable for intervals [8997,14947] and [1,5986]
 DEBUG:  join prunable for intervals [1,5986] and [8997,14947]
-DEBUG:  join prunable for intervals [8997,14946] and [1,5986]
+DEBUG:  join prunable for intervals [8997,14947] and [1,5986]
 DEBUG:  join prunable for intervals [1,5986] and [8997,14947]
-DEBUG:  join prunable for intervals [8997,14946] and [1,5986]
+DEBUG:  join prunable for intervals [8997,14947] and [1,5986]
 DEBUG:  assigned task 3 to node localhost:57637
 DEBUG:  assigned task 5 to node localhost:57638
 DEBUG:  assigned task 4 to node localhost:57637
@@ -74,7 +74,7 @@ DEBUG:  assigned task 1 to node localhost:57637
 DEBUG:  assigned task 2 to node localhost:57638
  count 
 -------
- 11998
+ 12000
 (1 row)
 
 SET citus.large_table_shard_count TO 2;

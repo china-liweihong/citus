@@ -1231,20 +1231,21 @@ LocalJoin(JoinOrderNode *currentJoinNode, TableEntry *candidateTable,
 	char candidatePartitionMethod = PartitionMethod(relationId);
 	char currentPartitionMethod = currentJoinNode->partitionMethod;
 	TableEntry *currentAnchorTable = currentJoinNode->anchorTable;
+	JoinRuleType currentJoinRuleType = currentJoinNode->joinRuleType;
 	bool joinOnPartitionColumns = false;
 	bool coPartitionedTables = false;
 
 	/*
-	 * If we previously dual-hash re-partitioned the tables for a join, we
-	 * currently don't allow local join.
+	 * If we previously dual-hash re-partitioned the tables for a join or made
+	 * cartesian product, we currently don't allow local join.
 	 */
-	if (currentPartitionMethod == REDISTRIBUTE_BY_HASH ||
-		currentPartitionMethod == CARTESIAN_PRODUCT)
+	if (currentJoinRuleType == DUAL_PARTITION_JOIN ||
+		currentJoinRuleType == CARTESIAN_PRODUCT)
 	{
 		return NULL;
 	}
 
-	Assert (currentAnchorTable != NULL);
+	Assert(currentAnchorTable != NULL);
 
 	/* the partition method should be the same for a local join */
 	if (currentPartitionMethod != candidatePartitionMethod)

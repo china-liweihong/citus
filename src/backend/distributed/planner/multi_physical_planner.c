@@ -2226,7 +2226,8 @@ ErrorIfUnsupportedShardDistribution(Query *query)
 
 
 /*
- * CoPartitionedTables first checks for the shard count, if tables don't have
+ * CoPartitionedTables checks if given two distributed tables have 1-to-1 shard
+ * placement matching. It first checks for the shard count, if tables don't have
  * same amount shard then it returns false. Note that, if any table does not
  * have any shard, it returns true. If two tables have same amount of shards,
  * we check colocationIds for hash distributed tables and shardInterval's min

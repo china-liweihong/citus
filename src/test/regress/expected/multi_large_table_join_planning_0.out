@@ -49,7 +49,7 @@ GROUP BY
 ORDER BY
 	l_partkey, o_orderkey;
 DEBUG:  StartTransactionCommand
-DEBUG:  join prunable for intervals [1,5986] and [8997,14946]
+DEBUG:  join prunable for intervals [1,5986] and [8997,14947]
 DEBUG:  join prunable for intervals [8997,14947] and [1,5986]
 DEBUG:  generated sql query for task 1
 DETAIL:  query string: "SELECT lineitem.l_partkey, orders.o_orderkey, lineitem.l_quantity, lineitem.l_extendedprice, orders.o_custkey FROM (lineitem_290000 lineitem JOIN orders_290002 orders ON ((lineitem.l_orderkey = orders.o_orderkey))) WHERE ((lineitem.l_partkey < 1000) AND (orders.o_totalprice > 10.0))"

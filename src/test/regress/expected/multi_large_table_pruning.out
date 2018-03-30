@@ -59,7 +59,7 @@ DEBUG:  pruning merge fetch taskId 5
 DETAIL:  Creating dependency on merge taskId 9
  count 
 -------
-  2984
+  2985
 (1 row)
 
 -- Single range-repartition join with a selection clause on the partitioned

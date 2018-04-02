@@ -1469,8 +1469,7 @@ HasUnresolvedExternParamsWalker(Node *expression, ParamListInfo boundParams)
 			if (!OidIsValid(externParam->ptype) && boundParams->paramFetch != NULL)
 			{
 #if (PG_VERSION_NUM >= 110000)
-				ParamExternData paramExternData;
-				(*boundParams->paramFetch)(boundParams, paramId, false, &paramExternData);
+				(*boundParams->paramFetch)(boundParams, paramId, false, externParam);
 #else
 				(*boundParams->paramFetch)(boundParams, paramId);
 #endif

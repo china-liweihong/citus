@@ -1,3 +1,11 @@
+-- This test has different output per major version
+SHOW server_version \gset
+SELECT substring(:'server_version', '\d+')::int as server_major_version;
+ server_major_version 
+----------------------
+                   11
+(1 row)
+
 -- ===================================================================
 -- create test functions
 -- ===================================================================
@@ -191,6 +199,7 @@ SELECT worker_apply_inter_shard_ddl_command(referencing_shard:=100, referencing_
  id     | integer |           |          |         | plain   |              | 
  time   | date    |           |          |         | plain   |              | 
 Partition key: RANGE ("time")
+Number of partitions: 0
 
 -- now lets have some more complex partitioning hierarcies with 
 -- tables on different schemas and constraints on the tables

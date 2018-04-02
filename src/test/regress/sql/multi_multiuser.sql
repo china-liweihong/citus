@@ -4,6 +4,10 @@
 -- Test user permissions.
 --
 
+-- print whether we're using version > 10 to make version-specific tests clear
+SHOW server_version \gset
+SELECT substring(:'server_version', '\d+')::int > 10 AS version_above_nine;
+
 SET citus.next_shard_id TO 1420000;
 ALTER SEQUENCE pg_catalog.pg_dist_jobid_seq RESTART 1420000;
 

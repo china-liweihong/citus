@@ -1156,8 +1156,12 @@ PlanDropIndexStmt(DropStmt *dropIndexStatement, const char *dropIndexCommand)
 		Oid relationId = InvalidOid;
 		bool isDistributedRelation = false;
 		struct DropRelationCallbackState state;
+#if (PG_VERSION_NUM >= 110000)
+		uint32 rvrFlags = RVR_MISSING_OK;
+#else
 		bool missingOK = true;
 		bool noWait = false;
+#endif
 		LOCKMODE lockmode = AccessExclusiveLock;
 
 		List *objectNameList = (List *) lfirst(dropObjectCell);
@@ -1182,9 +1186,15 @@ PlanDropIndexStmt(DropStmt *dropIndexStatement, const char *dropIndexCommand)
 		state.relkind = RELKIND_INDEX;
 		state.heapOid = InvalidOid;
 		state.concurrent = dropIndexStatement->concurrent;
+#if (PG_VERSION_NUM >= 110000)
+		indexId = RangeVarGetRelidExtended(rangeVar, lockmode, rvrFlags,
+										   RangeVarCallbackForDropIndex,
+										   (void *) &state);
+#else
 		indexId = RangeVarGetRelidExtended(rangeVar, lockmode, missingOK,
 										   noWait, RangeVarCallbackForDropIndex,
 										   (void *) &state);
+#endif
 
 		/*
 		 * If the index does not exist, we don't do anything here, and allow
@@ -1562,17 +1572,15 @@ PlanAlterObjectSchemaStmt(AlterObjectSchemaStmt *alterObjectSchemaStmt,
 						  const char *alterObjectSchemaCommand)
 {
 	Oid relationId = InvalidOid;
-	bool noWait = false;
 
 	if (alterObjectSchemaStmt->relation == NULL)
 	{
 		return NIL;
 	}
 
-	relationId = RangeVarGetRelidExtended(alterObjectSchemaStmt->relation,
-										  AccessExclusiveLock,
-										  alterObjectSchemaStmt->missing_ok,
-										  noWait, NULL, NULL);
+	relationId = RangeVarGetRelid(alterObjectSchemaStmt->relation,
+								  AccessExclusiveLock,
+								  alterObjectSchemaStmt->missing_ok);
 
 	/* first check whether a distributed relation is affected */
 	if (!OidIsValid(relationId) || !IsDistributedTable(relationId))

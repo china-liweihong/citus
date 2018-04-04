@@ -131,6 +131,9 @@ static Index GetNextSortGroupRef(List *targetEntryList);
 static TargetEntry * GenerateWorkerTargetEntry(TargetEntry *targetEntry,
 											   Expr *workerExpression,
 											   AttrNumber targetProjectionNumber);
+static void AppendTargetEntryToGroupClause(TargetEntry *targetEntry,
+										   List **groupClause,
+										   Index *nextSortGroupRefIndex);
 static bool WorkerAggregateWalker(Node *node,
 								  WorkerAggregateWalkerContext *walkerContext);
 static List * WorkerAggregateExpressionList(Aggref *originalAggregate,
@@ -1895,13 +1898,8 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 			 */
 			if (IsA(newExpression, Var) && walkerContext->createGroupByClause)
 			{
-				Var *column = (Var *) newTargetEntry->expr;
-				SortGroupClause *groupByClause = CreateSortGroupClause(column);
-				newTargetEntry->ressortgroupref = nextSortGroupRefIndex;
-				groupByClause->tleSortGroupRef = nextSortGroupRefIndex;
-
-				groupClauseList = lappend(groupClauseList, groupByClause);
-				nextSortGroupRefIndex++;
+				AppendTargetEntryToGroupClause(newTargetEntry, &groupClauseList,
+											   &nextSortGroupRefIndex);
 
 				createdNewGroupByClause = true;
 			}
@@ -1938,13 +1936,8 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 
 			if (IsA(newExpression, Var) && walkerContext->createGroupByClause)
 			{
-				Var *column = (Var *) newTargetEntry->expr;
-				SortGroupClause *groupByClause = CreateSortGroupClause(column);
-				newTargetEntry->ressortgroupref = nextSortGroupRefIndex;
-				groupByClause->tleSortGroupRef = nextSortGroupRefIndex;
-
-				groupClauseList = lappend(groupClauseList, groupByClause);
-				nextSortGroupRefIndex++;
+				AppendTargetEntryToGroupClause(newTargetEntry, &groupClauseList,
+											   &nextSortGroupRefIndex);
 
 				createdNewGroupByClause = true;
 			}
@@ -2146,6 +2139,39 @@ GenerateWorkerTargetEntry(TargetEntry *targetEntry, Expr *workerExpression,
 	newTargetEntry->resno = targetProjectionNumber;
 
 	return newTargetEntry;
+}
+
+
+/*
+ * AppendTargetEntryToGroupClause gets a target entry, pointer to group list
+ * and the ressortgroupref index.
+ *
+ * The function modifies all of the three input such that the target entry is
+ * appended to the group clause and the index is incremented by one.
+ */
+static void
+AppendTargetEntryToGroupClause(TargetEntry *targetEntry, List **groupClause,
+							   Index *nextSortGroupRefIndex)
+{
+	Expr *targetExpr PG_USED_FOR_ASSERTS_ONLY = targetEntry->expr;
+	Var *targetColumn = NULL;
+	SortGroupClause *groupByClause = NULL;
+
+	/* we currently only support appending Var target entries */
+	AssertArg(IsA(targetExpr, Var));
+
+	targetColumn = (Var *) targetEntry->expr;
+	groupByClause = CreateSortGroupClause(targetColumn);
+
+	/* the target entry should have an index */
+	targetEntry->ressortgroupref = *nextSortGroupRefIndex;
+
+	/* the group by clause entry should point to the correct index in the target list */
+	groupByClause->tleSortGroupRef = *nextSortGroupRefIndex;
+
+	/* update the group by list and the index's value */
+	*groupClause = lappend(*groupClause, groupByClause);
+	(*nextSortGroupRefIndex)++;
 }
 
 

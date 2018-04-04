@@ -117,8 +117,7 @@ static void ApplyExtendedOpNodes(MultiExtendedOp *originalNode,
 								 MultiExtendedOp *workerNode);
 static void TransformSubqueryNode(MultiTable *subqueryNode);
 static MultiExtendedOp * MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
-											  SharedSourceForExtendedOpNodes *
-											  sharedSourceForExtendedOpNodes);
+											  ExtendedOpNodeStats *extendedOpNodeStats);
 static Node * MasterAggregateMutator(Node *originalNode,
 									 MasterAggregateWalkerContext *walkerContext);
 static Expr * MasterAggregateExpression(Aggref *originalAggregate,
@@ -127,8 +126,7 @@ static Expr * MasterAverageExpression(Oid sumAggregateType, Oid countAggregateTy
 									  AttrNumber *columnId);
 static Expr * AddTypeConversion(Node *originalAggregate, Node *newExpression);
 static MultiExtendedOp * WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
-											  SharedSourceForExtendedOpNodes *
-											  sharedSourceForExtendedOpNodes);
+											  ExtendedOpNodeStats *extendedOpNodeStats);
 static bool WorkerAggregateWalker(Node *node,
 								  WorkerAggregateWalkerContext *walkerContext);
 static List * WorkerAggregateExpressionList(Aggref *originalAggregate,
@@ -203,7 +201,7 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 	MultiExtendedOp *extendedOpNode = NULL;
 	MultiExtendedOp *masterExtendedOpNode = NULL;
 	MultiExtendedOp *workerExtendedOpNode = NULL;
-	SharedSourceForExtendedOpNodes sharedSourceForExtendedOpNodes;
+	ExtendedOpNodeStats extendedOpNodeStats;
 	MultiNode *logicalPlanNode = (MultiNode *) multiLogicalPlan;
 
 	/* check that we can optimize aggregates in the plan */
@@ -267,13 +265,10 @@ MultiLogicalPlanOptimize(MultiTreeRoot *multiLogicalPlan)
 	extendedOpNodeList = FindNodesOfType(logicalPlanNode, T_MultiExtendedOp);
 	extendedOpNode = (MultiExtendedOp *) linitial(extendedOpNodeList);
 
-	sharedSourceForExtendedOpNodes =
-		BuildSharedSourceForExtendedOpNodes(extendedOpNode);
+	extendedOpNodeStats = BuildExtendedOpNodeStats(extendedOpNode);
 
-	masterExtendedOpNode =
-		MasterExtendedOpNode(extendedOpNode, &sharedSourceForExtendedOpNodes);
-	workerExtendedOpNode =
-		WorkerExtendedOpNode(extendedOpNode, &sharedSourceForExtendedOpNodes);
+	masterExtendedOpNode = MasterExtendedOpNode(extendedOpNode, &extendedOpNodeStats);
+	workerExtendedOpNode = WorkerExtendedOpNode(extendedOpNode, &extendedOpNodeStats);
 
 	ApplyExtendedOpNodes(extendedOpNode, masterExtendedOpNode, workerExtendedOpNode);
 
@@ -1178,12 +1173,11 @@ TransformSubqueryNode(MultiTable *subqueryNode)
 	MultiNode *collectNode = ChildNode((MultiUnaryNode *) extendedOpNode);
 	MultiNode *collectChildNode = ChildNode((MultiUnaryNode *) collectNode);
 
-	SharedSourceForExtendedOpNodes sharedSourceForExtendedOpNodes =
-		BuildSharedSourceForExtendedOpNodes(extendedOpNode);
+	ExtendedOpNodeStats extendedOpNodeStats = BuildExtendedOpNodeStats(extendedOpNode);
 	MultiExtendedOp *masterExtendedOpNode =
-		MasterExtendedOpNode(extendedOpNode, &sharedSourceForExtendedOpNodes);
+		MasterExtendedOpNode(extendedOpNode, &extendedOpNodeStats);
 	MultiExtendedOp *workerExtendedOpNode =
-		WorkerExtendedOpNode(extendedOpNode, &sharedSourceForExtendedOpNodes);
+		WorkerExtendedOpNode(extendedOpNode, &extendedOpNodeStats);
 
 	List *groupClauseList = extendedOpNode->groupClauseList;
 	List *targetEntryList = extendedOpNode->targetList;
@@ -1248,7 +1242,7 @@ TransformSubqueryNode(MultiTable *subqueryNode)
  */
 static MultiExtendedOp *
 MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
-					 SharedSourceForExtendedOpNodes *sharedSourceForExtendedOpNodes)
+					 ExtendedOpNodeStats *extendedOpNodeStats)
 {
 	MultiExtendedOp *masterExtendedOpNode = NULL;
 	List *targetEntryList = originalOpNode->targetList;
@@ -1260,8 +1254,7 @@ MasterExtendedOpNode(MultiExtendedOp *originalOpNode,
 		sizeof(MasterAggregateWalkerContext));
 
 	walkerContext->columnId = 1;
-	walkerContext->pullDistinctColumns =
-		sharedSourceForExtendedOpNodes->pullDistinctColumns;
+	walkerContext->pullDistinctColumns = extendedOpNodeStats->pullDistinctColumns;
 
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
@@ -1820,7 +1813,7 @@ AddTypeConversion(Node *originalAggregate, Node *newExpression)
  */
 static MultiExtendedOp *
 WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
-					 SharedSourceForExtendedOpNodes *sharedSourceForExtendedOpNodes)
+					 ExtendedOpNodeStats *extendedOpNodeStats)
 {
 	MultiExtendedOp *workerExtendedOpNode = NULL;
 	List *targetEntryList = originalOpNode->targetList;
@@ -1837,13 +1830,11 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	bool distinctPreventsLimitPushdown = false;
 	bool createdNewGroupByClause = false;
 	bool groupedByDisjointPartitionColumn =
-		sharedSourceForExtendedOpNodes->groupedByDisjointPartitionColumn;
-	bool pushDownWindowFunction =
-		sharedSourceForExtendedOpNodes->pushDownWindowFunctions;
+		extendedOpNodeStats->groupedByDisjointPartitionColumn;
+	bool pushDownWindowFunction = extendedOpNodeStats->pushDownWindowFunctions;
 
 	walkerContext->expressionList = NIL;
-	walkerContext->pullDistinctColumns =
-		sharedSourceForExtendedOpNodes->pullDistinctColumns;
+	walkerContext->pullDistinctColumns = extendedOpNodeStats->pullDistinctColumns;
 
 	/* find max of sort group ref index */
 	foreach(targetEntryCell, targetEntryList)

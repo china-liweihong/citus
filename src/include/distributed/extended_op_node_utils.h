@@ -14,26 +14,24 @@
 
 
 /*
- * SharedSourceForExtendedOpNodes is a helper structure that is used to
+ * ExtendedOpNodeStats is a helper structure that is used to
  * share the common information among the worker and master extended
  * op nodes.
  *
  * It is designed to be a read-only singleton object per extended op node
  * generation and processing.
  */
-typedef struct SharedSourceForExtendedOpNodes
+typedef struct ExtendedOpNodeStats
 {
 	bool groupedByDisjointPartitionColumn;
 	bool repartitionSubquery;
 	bool hasNonPartitionColumnDistinctAgg;
 	bool pullDistinctColumns;
 	bool pushDownWindowFunctions;
-} SharedSourceForExtendedOpNodes;
+} ExtendedOpNodeStats;
 
 
-extern SharedSourceForExtendedOpNodes BuildSharedSourceForExtendedOpNodes(
-	MultiExtendedOp *
-	extendedOpNode);
+extern ExtendedOpNodeStats BuildExtendedOpNodeStats(MultiExtendedOp *extendedOpNode);
 
 
 #endif /* EXTENDED_OP_NODE_UTILS_H_ */

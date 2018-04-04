@@ -31,14 +31,14 @@ static bool ShouldPullDistinctColumn(bool repartitionSubquery,
 
 
 /*
- * BuildSharedSourceForExtendedOpNodes is a helper function that simply builds
+ * BuildExtendedOpNodeStats is a helper function that simply builds
  * the necessary information for processing the extended op node. The return
  * value should be used in a read-only manner.
  */
-SharedSourceForExtendedOpNodes
-BuildSharedSourceForExtendedOpNodes(MultiExtendedOp *extendedOpNode)
+ExtendedOpNodeStats
+BuildExtendedOpNodeStats(MultiExtendedOp *extendedOpNode)
 {
-	SharedSourceForExtendedOpNodes sharedSourceForExtendedOpNodes;
+	ExtendedOpNodeStats extendedOpNodeStats;
 	List *tableNodeList = NIL;
 	List *targetList = NIL;
 	Node *havingQual = NULL;
@@ -71,15 +71,15 @@ BuildSharedSourceForExtendedOpNodes(MultiExtendedOp *extendedOpNode)
 	 */
 	pushDownWindowFunctions = extendedOpNode->hasWindowFuncs;
 
-	sharedSourceForExtendedOpNodes.groupedByDisjointPartitionColumn =
+	extendedOpNodeStats.groupedByDisjointPartitionColumn =
 		groupedByDisjointPartitionColumn;
-	sharedSourceForExtendedOpNodes.repartitionSubquery = repartitionSubquery;
-	sharedSourceForExtendedOpNodes.hasNonPartitionColumnDistinctAgg =
+	extendedOpNodeStats.repartitionSubquery = repartitionSubquery;
+	extendedOpNodeStats.hasNonPartitionColumnDistinctAgg =
 		hasNonPartitionColumnDistinctAgg;
-	sharedSourceForExtendedOpNodes.pullDistinctColumns = pullDistinctColumns;
-	sharedSourceForExtendedOpNodes.pushDownWindowFunctions = pushDownWindowFunctions;
+	extendedOpNodeStats.pullDistinctColumns = pullDistinctColumns;
+	extendedOpNodeStats.pushDownWindowFunctions = pushDownWindowFunctions;
 
-	return sharedSourceForExtendedOpNodes;
+	return extendedOpNodeStats;
 }
 
 

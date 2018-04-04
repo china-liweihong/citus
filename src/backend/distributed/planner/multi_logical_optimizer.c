@@ -128,6 +128,9 @@ static Expr * AddTypeConversion(Node *originalAggregate, Node *newExpression);
 static MultiExtendedOp * WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 											  ExtendedOpNodeStats *extendedOpNodeStats);
 static Index GetNextSortGroupRef(List *targetEntryList);
+static TargetEntry * GenerateWorkerTargetEntry(TargetEntry *targetEntry,
+											   Expr *workerExpression,
+											   AttrNumber targetProjectionNumber);
 static bool WorkerAggregateWalker(Node *node,
 								  WorkerAggregateWalkerContext *walkerContext);
 static List * WorkerAggregateExpressionList(Aggref *originalAggregate,
@@ -1874,8 +1877,14 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		foreach(newExpressionCell, newExpressionList)
 		{
 			Expr *newExpression = (Expr *) lfirst(newExpressionCell);
-			TargetEntry *newTargetEntry = copyObject(originalTargetEntry);
-			newTargetEntry->expr = newExpression;
+			TargetEntry *newTargetEntry = NULL;
+
+			/* generate and add the new target entry to the target list */
+			newTargetEntry =
+				GenerateWorkerTargetEntry(originalTargetEntry, newExpression,
+										  targetProjectionNumber);
+			targetProjectionNumber++;
+			newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
 
 			/*
 			 * Detect new targets of type Var and add it to group clause list.
@@ -1896,21 +1905,6 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 
 				createdNewGroupByClause = true;
 			}
-
-			if (newTargetEntry->resname == NULL)
-			{
-				StringInfo columnNameString = makeStringInfo();
-				appendStringInfo(columnNameString, WORKER_COLUMN_FORMAT,
-								 targetProjectionNumber);
-
-				newTargetEntry->resname = columnNameString->data;
-			}
-
-			/* force resjunk to false as we may need this on the master */
-			newTargetEntry->resjunk = false;
-			newTargetEntry->resno = targetProjectionNumber;
-			targetProjectionNumber++;
-			newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
 		}
 	}
 
@@ -1930,19 +1924,17 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 		/* now create target entries for each new expression */
 		foreach(newExpressionCell, newExpressionList)
 		{
-			TargetEntry *newTargetEntry = makeNode(TargetEntry);
-			StringInfo columnNameString = makeStringInfo();
-
 			Expr *newExpression = (Expr *) lfirst(newExpressionCell);
-			newTargetEntry->expr = newExpression;
+			TargetEntry *newTargetEntry = NULL;
 
-			appendStringInfo(columnNameString, WORKER_COLUMN_FORMAT,
-							 targetProjectionNumber);
-			newTargetEntry->resname = columnNameString->data;
-
-			/* force resjunk to false as we may need this on the master */
-			newTargetEntry->resjunk = false;
-			newTargetEntry->resno = targetProjectionNumber;
+			/*
+			 * Generate and add the new target entry to the target list. Note that the
+			 * function is responsible for allocating a new target entry.
+			 */
+			newTargetEntry =
+				GenerateWorkerTargetEntry(NULL, newExpression, targetProjectionNumber);
+			targetProjectionNumber++;
+			newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
 
 			if (IsA(newExpression, Var) && walkerContext->createGroupByClause)
 			{
@@ -1956,9 +1948,6 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 
 				createdNewGroupByClause = true;
 			}
-
-			newTargetEntryList = lappend(newTargetEntryList, newTargetEntry);
-			targetProjectionNumber++;
 		}
 	}
 
@@ -2108,6 +2097,55 @@ GetNextSortGroupRef(List *targetEntryList)
 	nextSortGroupRefIndex++;
 
 	return nextSortGroupRefIndex;
+}
+
+
+/*
+ * GenerateWorkerTargetEntry is a simple utility function which gets a
+ * target entry, an expression and a targetProjectionNumber.
+ *
+ * The function returns a newly allocated target entry which can be added
+ * to the worker's target list.
+ */
+static TargetEntry *
+GenerateWorkerTargetEntry(TargetEntry *targetEntry, Expr *workerExpression,
+						  AttrNumber targetProjectionNumber)
+{
+	TargetEntry *newTargetEntry = NULL;
+
+	/*
+	 * If a target entry is already provided, use a copy of
+	 * it because some of the callers rely on resorigtbl and
+	 * resorigcol.
+	 */
+	if (targetEntry)
+	{
+		newTargetEntry = copyObject(targetEntry);
+	}
+	else
+	{
+		newTargetEntry = makeNode(TargetEntry);
+	}
+
+	if (newTargetEntry->resname == NULL)
+	{
+		StringInfo columnNameString = makeStringInfo();
+
+		appendStringInfo(columnNameString, WORKER_COLUMN_FORMAT,
+						 targetProjectionNumber);
+
+		newTargetEntry->resname = columnNameString->data;
+	}
+
+	/* we can generate a target entry without any expressions */
+	Assert(workerExpression != NULL);
+
+	/* force resjunk to false as we may need this on the master */
+	newTargetEntry->expr = workerExpression;
+	newTargetEntry->resjunk = false;
+	newTargetEntry->resno = targetProjectionNumber;
+
+	return newTargetEntry;
 }
 
 

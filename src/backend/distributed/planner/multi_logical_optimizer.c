@@ -127,6 +127,7 @@ static Expr * MasterAverageExpression(Oid sumAggregateType, Oid countAggregateTy
 static Expr * AddTypeConversion(Node *originalAggregate, Node *newExpression);
 static MultiExtendedOp * WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 											  ExtendedOpNodeStats *extendedOpNodeStats);
+static Index GetNextSortGroupRef(List *targetEntryList);
 static bool WorkerAggregateWalker(Node *node,
 								  WorkerAggregateWalkerContext *walkerContext);
 static List * WorkerAggregateExpressionList(Aggref *originalAggregate,
@@ -1836,18 +1837,7 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	walkerContext->expressionList = NIL;
 	walkerContext->pullDistinctColumns = extendedOpNodeStats->pullDistinctColumns;
 
-	/* find max of sort group ref index */
-	foreach(targetEntryCell, targetEntryList)
-	{
-		TargetEntry *targetEntry = (TargetEntry *) lfirst(targetEntryCell);
-		if (targetEntry->ressortgroupref > nextSortGroupRefIndex)
-		{
-			nextSortGroupRefIndex = targetEntry->ressortgroupref;
-		}
-	}
-
-	/* next group ref index starts from max group ref index + 1 */
-	nextSortGroupRefIndex++;
+	nextSortGroupRefIndex = GetNextSortGroupRef(targetEntryList);
 
 	/* iterate over original target entries */
 	foreach(targetEntryCell, targetEntryList)
@@ -2089,6 +2079,35 @@ WorkerExtendedOpNode(MultiExtendedOp *originalOpNode,
 	}
 
 	return workerExtendedOpNode;
+}
+
+
+/*
+ * GetNextSortGroupRef gets a target list entry and returns
+ * the next ressortgroupref that should be used based on the
+ * input target list.
+ */
+static Index
+GetNextSortGroupRef(List *targetEntryList)
+{
+	ListCell *targetEntryCell = NULL;
+	Index nextSortGroupRefIndex = 0;
+
+	/* find max of sort group ref index */
+	foreach(targetEntryCell, targetEntryList)
+	{
+		TargetEntry *targetEntry = (TargetEntry *) lfirst(targetEntryCell);
+
+		if (targetEntry->ressortgroupref > nextSortGroupRefIndex)
+		{
+			nextSortGroupRefIndex = targetEntry->ressortgroupref;
+		}
+	}
+
+	/* next group ref index starts from max group ref index + 1 */
+	nextSortGroupRefIndex++;
+
+	return nextSortGroupRefIndex;
 }
 
 
